@@ -7,35 +7,15 @@ import bisect
 from copy import deepcopy
 
 from PIL import Image
-import keras
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Flatten
-from keras.layers import Conv2D, MaxPooling2D
-from keras import backend as K
-from keras.models import model_from_json
+import tensorflow
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Flatten
+from tensorflow.keras.layers import Conv2D, MaxPooling2D
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import model_from_json
 from sklearn.utils import shuffle
 import shutil
-
-def prilagodi(img):
-    BLUE = [255,0,0]
-    imgsize = img.shape
-    w = imgsize[0]
-    h = imgsize[1]
-    gore = 0
-    dolje = 0
-    lijevo = 0
-    desno = 0
-    if h > w:
-        diff = h - w
-        lijevo = int(diff / 2) + (diff % 2)
-        desno = int(diff / 2)
-    else:
-        diff = w - h
-        gore = int(diff / 2) + (diff % 2)
-        dolje = int(diff / 2)
-    img = cv2.copyMakeBorder(img, lijevo, desno, gore, dolje, cv2.BORDER_CONSTANT, value=BLUE)
-    img = cv2.resize(img, (50, 50), interpolation=cv2.INTER_AREA)
-    return img
+from funkcije import prilagodi, prikazi
 
 def flood(c, y, x):
 	h, w = c.shape
@@ -129,14 +109,17 @@ def place(li, lines, hist, tol, hi, lo):
 	return li
 	
 
-original = cv2.imread('str.png',0)
+original = cv2.imread('strvz.png',0)
 img = cv2.GaussianBlur(original,(5,5),0)
+prikazi("img", img)
 ret, img = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
 img = cv2.bitwise_not(img)
+prikazi("img", img)
 
 kernel = np.ones((3, 3),np.uint8)
 img = cv2.erode(img,kernel,iterations = 2)
+prikazi("img", img)
 arrimg = np.array(img)
 hist_row = arrimg.sum(axis=1)
 
@@ -156,20 +139,21 @@ original1 = deepcopy(original)
 lines = []
 bef = 0
 for i in range(len(hist_row)):
-	if hist_row[i] == 0 and bef > 0:
+	if hist_row[i]/255/w < 0.1 and bef > 0.1:
 		lines.append(i)
-	bef = hist_row[i]
-
+	bef = hist_row[i]/255/w
+print(lines)
+	
 avg = h // (len(lines))
 #print("Avg:", avg)
 lines = [0]
 bef = 0
 for i in range(len(hist_row)):
-	if hist_row[i] == 0 and bef > 0:
+	if hist_row[i]/255/w == 0 and bef > 0.1:
 		if lines[-1] + avg//3 <= i:
 			lines.append(i)
 			cv2.line(original, (0, i), (w, i), 1, 1)
-	bef = hist_row[i]
+	bef = hist_row[i]/255/w
 
 lineThickness = 1
 prom = True
