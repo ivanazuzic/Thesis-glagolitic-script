@@ -20,6 +20,7 @@ from funkcije import prikazi, prilagodi
 
 from math import floor
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
 def flood(c, y, x):
 	h, w = c.shape
@@ -58,8 +59,9 @@ def slices(c):
 	add_slice.append(backup[:, last:])
 	return add_slice
 
-def charseg(row_img):
+def charseg(row_img, top, bottom):
 	sol = []
+	frames = []
 	h, w = row_img.shape
 	backup = deepcopy(row_img)
 	row_img = cv.GaussianBlur(row_img,(5,5),0)
@@ -71,9 +73,11 @@ def charseg(row_img):
 	arrimg = np.array(row_img)
 	
 	hist_col = arrimg.sum(axis=0)
+	"""
 	plt.hist(hist_col, bins=30)
 	plt.ylabel('Pikseli s tintom');
 	plt.show()
+	"""
 	bef = 0
 	left = 0
 	right = 0
@@ -81,23 +85,24 @@ def charseg(row_img):
 		if hist_col[i] == 0 and bef > 0:
 			right = i
 			sol.append(backup[:, left:right])
+			frames.append((top, bottom, left, right))
 			#cv.line(backup, (right, 0), (right , h), 255, 1)
 			#cv.line(backup, (left, 0), (left , h), 1, 1)
 		if hist_col[i] > 0 and bef == 0:
 			left = i-1
 		bef = hist_col[i]
-	"""	
+	"""
 	prikazi("Slika", row_img)
 	
 	prikazi("Slika", backup)
 	print(hist_col)
 	"""
-	return sol
+	return (sol, frames)
 
 def place(li, lines, hist, tol, hi, lo):
 	if li < lo or li > hi:
 		return -1
-	li = np.argmin(hist_row[max(li-tol, lo):min(li + tol, hi)]) + li-tol
+	li = np.argmin(hist[max(li-tol, lo):min(li + tol, hi)]) + li-tol
 	for l in lines:
 		if abs(l - li) < tol:
 			return -1
@@ -105,8 +110,8 @@ def place(li, lines, hist, tol, hi, lo):
 			return -1
 	return li
 	
-def split_to_lines(original):
-	original = cv.imread('strvz.png',0)
+def split_to_lines(img_loc):
+	original = cv.imread(img_loc,0)
 	img = cv.GaussianBlur(original,(5,5),0)
 	ret, img = cv.threshold(img,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
 
@@ -134,7 +139,7 @@ def split_to_lines(original):
 		if hist_row[i]/255/w < 0.1 and bef > 0.1:
 			lines.append(i)
 		bef = hist_row[i]/255/w
-	print(lines)
+	#print(lines)
 		
 	avg = h // (len(lines))
 	#print("Avg:", avg)
@@ -177,31 +182,31 @@ def split_to_lines(original):
 	prikazi("Slika", original)
 
 	chars = []
-	for i in range(0, 3):
+	frames = []
+	for i in range(1, 2): #TODO stavi sve linije a ne 1
 		if lines[i-1] >= lines[i]:
-			print("dalje")
+			print("dalje") 
 			continue
-		seg = charseg(original1[lines[i-1]:lines[i], :]) #nakon segmentacije po histogramu
+		charseg_output = charseg(original1[lines[i-1]:lines[i], :], lines[i-1], lines[i]) #nakon segmentacije po histogramu
+		chars.append(charseg_output[0])
+		frames.append(charseg_output[1])
+		"""
+		seg = charseg_output[0]
 		for c in seg:
-			sl = slices(c)
+			sl = slices(c) #dodatno sjeckanje slova
+			print("Slices: ", len(sl))
 			for s in sl:
 				hh, ww = s.shape
 				if hh == 0 or ww == 0:
 					continue
-				"""
+				
 				prikazi("Slika", s)
-				"""
-				chars.append(cv.bitwise_not(s))
+				
+				chars.append(cv.bitwise_not(s)) #!!!!!
+		"""
+	return (chars, frames)
 
-def testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc):
-	#ucitaj json i stvori model
-	json_file = open(model_json_loc, 'r')
-	loaded_model_json = json_file.read()
-	json_file.close()
-	loaded_model = model_from_json(loaded_model_json)
-	#ucitaj tezine za model
-	loaded_model.load_weights(model_weights_loc)
-
+def get_truth(page_img_loc, page_txt_loc):
 	#ucitavanje slike koja se analizira
 	img = cv.imread(page_img_loc, 0)
 	ret, img = cv.threshold(img,127,255,cv.THRESH_BINARY)
@@ -213,18 +218,33 @@ def testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc):
 	#temejna istina za slike, koja slova stvarno prikazuju
 	gclass = []
 
+	#lista okvira svih slika
+	frames = []
+	
 	for line in file: 
 		line = line.split()
 		gclass.append(line[-5])
 		line = [int(float(x)) for x in line[-4:]]
 		cv.rectangle(img,(line[0],line[1]),(line[2], line[3]),(0,0,255),1)
 		seg.append(prilagodi(img[line[1]:line[3], line[0]:line[2]]))
+		frames.append((line[1], line[3], line[0], line[2]))
+	
+	return (seg, frames, gclass)
+	
+def testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess_seg, guess_frames):
+	#ucitaj json i stvori model
+	json_file = open(model_json_loc, 'r')
+	loaded_model_json = json_file.read()
+	json_file.close()
+	loaded_model = model_from_json(loaded_model_json)
+	#ucitaj tezine za model
+	loaded_model.load_weights(model_weights_loc)
 
 	ConfMatrix = [[0 for x in range(num_classes)] for y in range(num_classes)]
 
 	rounded_predictions = []
 
-	X = [np.array(im).flatten() for im in seg]
+	X = [np.array(im).flatten() for im in guess_seg]
 
 	X = np.array(X)
 
@@ -250,7 +270,7 @@ def testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc):
 			#slovo koje je ispalo
 			indeks = output[i].argmax()
 			#slovo koje bi trebalo ispasti
-			slovo = gclass[i]
+			slovo = truth_class[i]
 			if slovo == '(i)je':
 				continue
 			print(azbuka[indeks], slovo)
@@ -259,7 +279,7 @@ def testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc):
 			total += 1
 			if azbuka[indeks] == slovo:
 				num += 1
-	print(num, total)
+	#print(num, total)
 	#print(' '.join(gclass))
 
 azbuka = ['a', 'b', 'v', 'g', 'd', 'e', 'zj', 'dz', 'z', '(i)', 'i', 'dj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', 'h', '(o)', "(sj)c'", 'c', 'cj', 'sj', 'ja, (i)je', 'ju' ,'j', 'poluglas']
@@ -279,5 +299,7 @@ for mod in all_models:
 			page_img_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title) + folder + '.png'
 			page_txt_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title + folder) + '.txt'
 
-			testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc)
-			split_to_lines(page_img_loc)
+			(truth_seg, truth_frames, truth_class) = get_truth(page_img_loc, page_txt_loc)
+			(guess_seg, guess_frames) = split_to_lines(page_img_loc)
+			test_segmentation(truth_frames, guess_frames)
+			#testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess_seg, guess_frames)
