@@ -19,6 +19,179 @@ from sklearn.metrics import accuracy_score
 from funkcije import prikazi, prilagodi
 
 from math import floor
+from copy import deepcopy
+
+def flood(c, y, x):
+	h, w = c.shape
+	if y < 0 or x < 0 or y >= h or x >= w:
+		return 
+	if (c[y, x] > 0):
+		c[y, x] = 0
+	else:
+		return 
+	flood(c, y - 1, x)
+	flood(c, y + 1, x)
+	flood(c, y, x - 1)
+	flood(c, y , x + 1)
+
+def slices(c):
+	#c = cv.adaptiveThreshold(c,255,cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY,11,2)
+	c = cv.adaptiveThreshold(c,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY,11,2)
+	#c = cv.GaussianBlur(c,(5,5),0)
+	#ret, c = cv.threshold(c,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
+	c = cv.bitwise_not(c)
+	backup = deepcopy(c)
+	"""
+	prikazi("Slika", c)
+	"""
+	h, w = c.shape
+	add_slice = []
+	last = 0
+	for i in range(w):
+		if c[h//2, i] > 0:
+			flood(c, h//2, i)
+			add_slice.append(backup[:, last:i])
+			last = i
+			"""
+			prikazi("Slika", c)
+			"""
+	add_slice.append(backup[:, last:])
+	return add_slice
+
+def charseg(row_img):
+	sol = []
+	h, w = row_img.shape
+	backup = deepcopy(row_img)
+	row_img = cv.GaussianBlur(row_img,(5,5),0)
+	ret, row_img = cv.threshold(row_img,0,255,cv.THRESH_BINARY + cv.THRESH_OTSU)
+	row_img = cv.bitwise_not(row_img)
+
+	kernel = np.ones((2, 2),np.uint8)
+	row_img = cv.erode(row_img,kernel,iterations = 2)
+	arrimg = np.array(row_img)
+	
+	hist_col = arrimg.sum(axis=0)
+	plt.hist(hist_col, bins=30)
+	plt.ylabel('Pikseli s tintom');
+	plt.show()
+	bef = 0
+	left = 0
+	right = 0
+	for i in range(1, len(hist_col)): # od 1 da left ne ode izvan polja
+		if hist_col[i] == 0 and bef > 0:
+			right = i
+			sol.append(backup[:, left:right])
+			#cv.line(backup, (right, 0), (right , h), 255, 1)
+			#cv.line(backup, (left, 0), (left , h), 1, 1)
+		if hist_col[i] > 0 and bef == 0:
+			left = i-1
+		bef = hist_col[i]
+	"""	
+	prikazi("Slika", row_img)
+	
+	prikazi("Slika", backup)
+	print(hist_col)
+	"""
+	return sol
+
+def place(li, lines, hist, tol, hi, lo):
+	if li < lo or li > hi:
+		return -1
+	li = np.argmin(hist_row[max(li-tol, lo):min(li + tol, hi)]) + li-tol
+	for l in lines:
+		if abs(l - li) < tol:
+			return -1
+		if li == l:
+			return -1
+	return li
+	
+def split_to_lines(original):
+	original = cv.imread('strvz.png',0)
+	img = cv.GaussianBlur(original,(5,5),0)
+	ret, img = cv.threshold(img,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
+
+	img = cv.bitwise_not(img)
+
+	kernel = np.ones((3, 3),np.uint8)
+	img = cv.erode(img,kernel,iterations = 2)
+	arrimg = np.array(img)
+	hist_row = arrimg.sum(axis=1)
+
+	"""
+	plt.hist(hist_row, bins=30)
+	plt.ylabel('Pikseli s tintom');
+	plt.show()
+
+	print(hist_row)
+	prikazi("Slika", arrimg)
+	"""
+
+	h, w = original.shape
+	original1 = deepcopy(original)
+	lines = []
+	bef = 0
+	for i in range(len(hist_row)):
+		if hist_row[i]/255/w < 0.1 and bef > 0.1:
+			lines.append(i)
+		bef = hist_row[i]/255/w
+	print(lines)
+		
+	avg = h // (len(lines))
+	#print("Avg:", avg)
+	lines = [0]
+	bef = 0
+	for i in range(len(hist_row)):
+		if hist_row[i]/255/w == 0 and bef > 0.1:
+			if lines[-1] + avg//3 <= i:
+				lines.append(i)
+				cv.line(original, (0, i), (w, i), 1, 1)
+		bef = hist_row[i]/255/w
+
+	lineThickness = 1
+	prom = True
+	while (prom):
+		prom = False
+		for i in range(len(lines)):
+			#prava linija
+			li = lines[i]
+			#print("Linija", i + 1, " -> ", li)
+			cv.line(original, (0, li), (w, li), 1, lineThickness)
+			
+			#linija iznad sadasnje		
+			ind = place(li - avg, lines, hist_row, avg//3, h, 0)
+			if ind != -1:
+				lines.append(ind)
+				lines.sort()
+				cv.line(original, (0, ind), (w, ind), 255, lineThickness)
+				prom = True
+				break
+			#linija ispod sadasnje
+			ind = place(li + avg, lines, hist_row, avg//3, h, 0)
+			if ind != -1:
+				lines.append(ind)
+				lines.sort()
+				cv.line(original, (0, ind), (w, ind), 255, lineThickness)
+				prom = True
+				break
+
+	prikazi("Slika", original)
+
+	chars = []
+	for i in range(0, 3):
+		if lines[i-1] >= lines[i]:
+			print("dalje")
+			continue
+		seg = charseg(original1[lines[i-1]:lines[i], :]) #nakon segmentacije po histogramu
+		for c in seg:
+			sl = slices(c)
+			for s in sl:
+				hh, ww = s.shape
+				if hh == 0 or ww == 0:
+					continue
+				"""
+				prikazi("Slika", s)
+				"""
+				chars.append(cv.bitwise_not(s))
 
 def testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc):
 	#ucitaj json i stvori model
@@ -107,3 +280,4 @@ for mod in all_models:
 			page_txt_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title + folder) + '.txt'
 
 			testiraj(model_json_loc, model_weights_loc, page_img_loc, page_txt_loc)
+			split_to_lines(page_img_loc)
