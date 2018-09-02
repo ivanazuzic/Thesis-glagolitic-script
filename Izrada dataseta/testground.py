@@ -15,8 +15,9 @@ import shutil
 from sklearn.metrics import confusion_matrix
 import itertools
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
 
-from funkcije import prikazi, prilagodi, sorensen_dice_coefficient  
+from funkcije import prikazi, prilagodi, sorensen_dice_coefficient, plotsaving
 
 from math import floor
 from copy import deepcopy
@@ -268,6 +269,7 @@ def show_correctly_mapped_frames(page_img_loc, frame_mapping):
 def get_conf_matrix(loaded_model, truth_class, segments):
 	ConfMatrix = [[0 for x in range(num_classes)] for y in range(num_classes)]
 
+	test_labels = []
 	rounded_predictions = []
 
 	X = [np.array(im).flatten() for im in segments]
@@ -300,6 +302,7 @@ def get_conf_matrix(loaded_model, truth_class, segments):
 			slovo = truth_class[i]
 			if slovo == '(i)je':
 				continue
+			test_labels.append(slovo)
 			#print(azbuka[indeks], slovo)
 			ConfMatrix[azbuka.index(slovo)][indeks] += 1 
 			rounded_predictions.append(azbuka[indeks])
@@ -308,7 +311,9 @@ def get_conf_matrix(loaded_model, truth_class, segments):
 				num += 1
 	#print(num, total)
 	#print(' '.join(gclass)) #tocan tekst
-	return ConfMatrix
+	print(test_labels)
+	cm = confusion_matrix(test_labels, rounded_predictions)
+	return cm
 	
 def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping):
 	#ucitaj json i stvori model
@@ -332,8 +337,8 @@ def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, trut
 			reduced_guess_seg.append(guess_seg[i])
 		print(reduced_truth_class, reduced_guess_seg)
 
-	ConfMatrix = get_conf_matrix(loaded_model, reduced_truth_class, reduced_guess_seg)
-	print(ConfMatrix)
+	cm = get_conf_matrix(loaded_model, reduced_truth_class, reduced_guess_seg)
+	plotsaving(cm, azbuka, "plot.jpg", normalize='False', title='Confusion matrix')
 
 azbuka = ['a', 'b', 'v', 'g', 'd', 'e', 'zj', 'dz', 'z', '(i)', 'i', 'dj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', 'h', '(o)', "(sj)c'", 'c', 'cj', 'sj', 'ja, (i)je', 'ju' ,'j', 'poluglas']
 azbuka.sort()

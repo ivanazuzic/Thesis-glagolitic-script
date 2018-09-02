@@ -80,6 +80,31 @@ def noisy(noise_list,image):
 					image[r, c] = noisy[r, c]
 	return image
 	
+def plotsaving(cm, classes, dst, normalize='False', title='Confusion matrix'):
+	if normalize:
+		cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+
+	fig = plt.figure()
+	plt.clf()
+	ax = fig.add_subplot(111)
+	ax.set_aspect(1)
+	res = ax.imshow(np.array(cm), cmap=plt.cm.jet, 
+					interpolation='nearest')
+	plt.title(title)
+
+	width = len(classes)
+	height = len(classes)
+
+	cb = fig.colorbar(res)
+	alphabet = classes
+	plt.xticks(range(width), alphabet[:width], rotation=90)
+	plt.yticks(range(height), alphabet[:height])
+	plt.tight_layout(pad=1.5)
+	plt.ylabel("True label")
+	plt.xlabel("Predicted label")
+	plt.savefig(dst, format='png')
+
+#TODO: Remove this function
 def plot_confusion_matrix(cm, classes, normalize='False', title='Confusion matrix', cmap=plt.cm.Blues):
 	plt.imshow(cm, interpolation='nearest', cmap=cmap)
 	plt.title(title)
