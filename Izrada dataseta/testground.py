@@ -84,7 +84,7 @@ def charseg(row_img, top, bottom):
 	for i in range(1, len(hist_col)): # od 1 da left ne ode izvan polja
 		if hist_col[i] == 0 and bef > 0:
 			right = i
-			sol.append(backup[:, left:right])
+			sol.append(prilagodi(backup[:, left:right]))
 			frames.append((top, bottom, left, right))
 			#cv.line(backup, (right, 0), (right , h), 255, 1)
 			#cv.line(backup, (left, 0), (left , h), 1, 1)
@@ -265,20 +265,12 @@ def show_correctly_mapped_frames(page_img_loc, frame_mapping):
 		cv.line(kopija, (fm[3], fm[0]), (fm[3], fm[1]), 1, 1)
 	prikazi("", kopija)	
 	
-def testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess_seg, guess_frames):
-	#ucitaj json i stvori model
-	json_file = open(model_json_loc, 'r')
-	loaded_model_json = json_file.read()
-	json_file.close()
-	loaded_model = model_from_json(loaded_model_json)
-	#ucitaj tezine za model
-	loaded_model.load_weights(model_weights_loc)
-
+def get_conf_matrix(loaded_model, truth_class, segments):
 	ConfMatrix = [[0 for x in range(num_classes)] for y in range(num_classes)]
 
 	rounded_predictions = []
 
-	X = [np.array(im).flatten() for im in guess_seg]
+	X = [np.array(im).flatten() for im in segments]
 
 	X = np.array(X)
 
@@ -296,9 +288,10 @@ def testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess
 	X /= 255
 
 	output = loaded_model.predict(X, verbose=1)
-
-	num = 0
-	total = 0
+	
+	num = 0 #tocni
+	total = 0 #svi
+	print(len(output), len(truth_class), len(segments))
 	if len(output) > 0:
 		for i in range(len(output)):
 			#slovo koje je ispalo
@@ -307,14 +300,40 @@ def testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess
 			slovo = truth_class[i]
 			if slovo == '(i)je':
 				continue
-			print(azbuka[indeks], slovo)
+			#print(azbuka[indeks], slovo)
 			ConfMatrix[azbuka.index(slovo)][indeks] += 1 
 			rounded_predictions.append(azbuka[indeks])
 			total += 1
 			if azbuka[indeks] == slovo:
 				num += 1
 	#print(num, total)
-	#print(' '.join(gclass))
+	#print(' '.join(gclass)) #tocan tekst
+	return ConfMatrix
+	
+def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping):
+	#ucitaj json i stvori model
+	json_file = open(model_json_loc, 'r')
+	loaded_model_json = json_file.read()
+	json_file.close()
+	loaded_model = model_from_json(loaded_model_json)
+	#ucitaj tezine za model
+	loaded_model.load_weights(model_weights_loc)
+
+	ConfMatrix = get_conf_matrix(loaded_model, truth_class, truth_seg)
+	
+	reduced_truth_class = []
+	reduced_guess_seg = []
+	for i in range(len(frame_mapping)):
+		if frame_mapping[i] == None:
+			continue
+		else:
+			j = truth_frames.index(frame_mapping[i])
+			reduced_truth_class.append(truth_class[j])
+			reduced_guess_seg.append(guess_seg[i])
+		print(reduced_truth_class, reduced_guess_seg)
+
+	ConfMatrix = get_conf_matrix(loaded_model, reduced_truth_class, reduced_guess_seg)
+	print(ConfMatrix)
 
 azbuka = ['a', 'b', 'v', 'g', 'd', 'e', 'zj', 'dz', 'z', '(i)', 'i', 'dj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', 'h', '(o)', "(sj)c'", 'c', 'cj', 'sj', 'ja, (i)je', 'ju' ,'j', 'poluglas']
 azbuka.sort()
@@ -338,4 +357,6 @@ for mod in all_models:
 			
 			frame_mapping = test_segmentation(truth_frames, guess_frames)
 			show_correctly_mapped_frames(page_img_loc, frame_mapping)
-			#testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess_seg, guess_frames)
+			
+			#Testiranje tocnosti
+			testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping)
