@@ -103,3 +103,20 @@ def plot_confusion_matrix(cm, classes, normalize='False', title='Confusion matri
 	plt.ylabel("True label")
 	plt.xlabel("Predicted label")
 	plt.show()
+	
+def area(a):
+	return (a[2] - a[0]) * (a[3] - a[1])
+
+def intersection_area(a, b):  # returns -1 if rectangles don't intersect
+	dx = max(a[0], b[0]) - min(a[2], b[2])
+	dy = max(a[1], b[1]) - min(a[3], b[3])
+	if (dx<=0) and (dy<=0):
+		return dx*dy
+	return -1
+
+def sorensen_dice_coefficient(frameX, frameY):
+	ra = (frameX[0], frameX[2], frameX[1], frameX[3])
+	rb = (frameY[0], frameY[2], frameY[1], frameY[3])
+	X = area(ra)
+	Y = area(rb)
+	return 2 * intersection_area(ra, rb) / (X + Y)
