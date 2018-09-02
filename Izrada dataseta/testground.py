@@ -16,7 +16,7 @@ from sklearn.metrics import confusion_matrix
 import itertools
 from sklearn.metrics import accuracy_score
 
-from funkcije import prikazi, prilagodi
+from funkcije import prikazi, prilagodi, sorensen_dice_coefficient  
 
 from math import floor
 from copy import deepcopy
@@ -183,13 +183,14 @@ def split_to_lines(img_loc):
 
 	chars = []
 	frames = []
-	for i in range(1, 2): #TODO stavi sve linije a ne 1
+	for i in range(2, 3): #TODO stavi sve linije a ne 1
 		if lines[i-1] >= lines[i]:
 			print("dalje") 
 			continue
 		charseg_output = charseg(original1[lines[i-1]:lines[i], :], lines[i-1], lines[i]) #nakon segmentacije po histogramu
-		chars.append(charseg_output[0])
-		frames.append(charseg_output[1])
+		prikazi("Slika", original1[lines[i-1]:lines[i], :])
+		chars += charseg_output[0]
+		frames += charseg_output[1]
 		"""
 		seg = charseg_output[0]
 		for c in seg:
@@ -230,6 +231,39 @@ def get_truth(page_img_loc, page_txt_loc):
 		frames.append((line[1], line[3], line[0], line[2]))
 	
 	return (seg, frames, gclass)
+
+def test_segmentation(truth_frames, guess_frames):
+	frame_mapping = []
+	for gue in guess_frames:
+		found = 0
+		possible_frames = []
+		sdc_list = []
+		for tr in truth_frames:
+			sdc = sorensen_dice_coefficient(gue, tr)
+			if (sdc >= 0.70):
+				possible_frames.append(tr)
+				sdc_list.append(sdc)
+				print(sdc, gue, tr)
+				found += 1
+				break
+		if found == 0:
+			frame_mapping.append(None)
+		else:
+			maksi = max(sdc_list)
+			maksind = sdc_list.index(maksi)
+			frame_mapping.append(possible_frames[maksind])
+	print("Stvaran broj okvira:", len(truth_frames))
+	print(len(frame_mapping) - frame_mapping.count(None), len(frame_mapping), " izrezanih su istiniti.")
+	return frame_mapping
+
+def show_correctly_mapped_frames(page_img_loc, frame_mapping):
+	kopija = cv.imread(page_img_loc, 0)
+	for fm in frame_mapping:
+		if fm == None:
+			continue
+		cv.line(kopija, (fm[2], fm[0]), (fm[2], fm[1]), 255, 1)
+		cv.line(kopija, (fm[3], fm[0]), (fm[3], fm[1]), 1, 1)
+	prikazi("", kopija)	
 	
 def testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess_seg, guess_frames):
 	#ucitaj json i stvori model
@@ -301,5 +335,7 @@ for mod in all_models:
 
 			(truth_seg, truth_frames, truth_class) = get_truth(page_img_loc, page_txt_loc)
 			(guess_seg, guess_frames) = split_to_lines(page_img_loc)
-			test_segmentation(truth_frames, guess_frames)
+			
+			frame_mapping = test_segmentation(truth_frames, guess_frames)
+			show_correctly_mapped_frames(page_img_loc, frame_mapping)
 			#testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, guess_seg, guess_frames)
