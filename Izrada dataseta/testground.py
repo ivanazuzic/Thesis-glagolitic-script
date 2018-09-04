@@ -179,17 +179,19 @@ def split_to_lines(img_loc):
 				cv.line(original, (0, ind), (w, ind), 255, lineThickness)
 				prom = True
 				break
-
+	"""
+	Segmentacija na linije
 	prikazi("Slika", original)
-
+	"""
+	
 	chars = []
 	frames = []
-	for i in range(2, 3): #TODO stavi sve linije a ne 1
+	for i in range(0, len(lines)): #TODO stavi sve linije a ne 1
 		if lines[i-1] >= lines[i]:
-			print("dalje") 
+			#print("dalje") 
 			continue
 		charseg_output = charseg(original1[lines[i-1]:lines[i], :], lines[i-1], lines[i]) #nakon segmentacije po histogramu
-		prikazi("Slika", original1[lines[i-1]:lines[i], :])
+		#prikazi("Slika", original1[lines[i-1]:lines[i], :])
 		chars += charseg_output[0]
 		frames += charseg_output[1]
 		"""
@@ -266,7 +268,7 @@ def show_correctly_mapped_frames(page_img_loc, frame_mapping):
 		cv.line(kopija, (fm[3], fm[0]), (fm[3], fm[1]), 1, 1)
 	prikazi("", kopija)	
 	
-def get_conf_matrix(loaded_model, truth_class, segments):
+def get_conf_matrix(loaded_model, truth_class, segments, azbuka):
 	ConfMatrix = [[0 for x in range(num_classes)] for y in range(num_classes)]
 
 	test_labels = []
@@ -312,10 +314,31 @@ def get_conf_matrix(loaded_model, truth_class, segments):
 	#print(num, total)
 	#print(' '.join(gclass)) #tocan tekst
 	print(test_labels)
-	cm = confusion_matrix(test_labels, rounded_predictions)
-	return cm
+	cm = confusion_matrix(test_labels, rounded_predictions, azbuka)
+	return (cm, test_labels, rounded_predictions)
+
+def statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions):
+	file = open(stat_loc,'w') 
+	acc_by_class = []
+	acc = []
+	for i in range(len(cm)):
+		acc_by_class.append((cm[i][i] / sum(cm[i]),  i) )
+		acc.append((cm[i][i] / sum(cm[i]),  i))
+		file.write("Slovo " + azbuka[i] + " TP " + str (cm[i][i]) + " Total " +str(sum(cm[i])) + '\n')
+
+	acc_by_class.sort()
+	acc_by_class.reverse()
+	for a in acc_by_class[:5]:
+		file.write(azbuka[a[1]] + ' ' + str(a[0]) + ' ' + str(cm[a[1]]) + '\n')
+	file.write('---------------\n')
+	file.write('Total accuracy ' + str(accuracy_score(test_labels, rounded_predictions, normalize=True)) + '\n')
+	#file.write('Total accuracy2 ' + str(tocno / (tocno + krivo)) + '\n')
+	file.write('---------------\n')
+	for a in acc:
+		file.write(azbuka[a[1]] + ' ' + str(a[0]) + '\n')
+	file.close()
 	
-def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping):
+def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka):
 	#ucitaj json i stvori model
 	json_file = open(model_json_loc, 'r')
 	loaded_model_json = json_file.read()
@@ -324,8 +347,11 @@ def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, trut
 	#ucitaj tezine za model
 	loaded_model.load_weights(model_weights_loc)
 
-	ConfMatrix = get_conf_matrix(loaded_model, truth_class, truth_seg)
+	(cm, test_labels, rounded_predictions) = get_conf_matrix(loaded_model, truth_class, truth_seg, azbuka)
+	plotsaving(cm, azbuka, plot_loc, normalize=False, title='Confusion matrix')
+	statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions)
 	
+	"""
 	reduced_truth_class = []
 	reduced_guess_seg = []
 	for i in range(len(frame_mapping)):
@@ -337,8 +363,9 @@ def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, trut
 			reduced_guess_seg.append(guess_seg[i])
 		print(reduced_truth_class, reduced_guess_seg)
 
-	cm = get_conf_matrix(loaded_model, reduced_truth_class, reduced_guess_seg)
-	plotsaving(cm, azbuka, "plot.jpg", normalize='False', title='Confusion matrix')
+	cm = get_conf_matrix(loaded_model, reduced_truth_class, reduced_guess_seg, azbuka)
+	"""
+	#plotsaving(cm, azbuka, plot_loc, normalize='False', title='Confusion matrix')
 
 azbuka = ['a', 'b', 'v', 'g', 'd', 'e', 'zj', 'dz', 'z', '(i)', 'i', 'dj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', 'h', '(o)', "(sj)c'", 'c', 'cj', 'sj', 'ja, (i)je', 'ju' ,'j', 'poluglas']
 azbuka.sort()
@@ -361,7 +388,9 @@ for mod in all_models:
 			(guess_seg, guess_frames) = split_to_lines(page_img_loc)
 			
 			frame_mapping = test_segmentation(truth_frames, guess_frames)
-			show_correctly_mapped_frames(page_img_loc, frame_mapping)
+			#show_correctly_mapped_frames(page_img_loc, frame_mapping)
 			
 			#Testiranje tocnosti
-			testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping)
+			plot_loc = 'Rezultati/' + mod + str.lower(title) + folder + '.png'
+			stat_loc = 'Rezultati/' + mod + str.lower(title) + folder + '.txt'
+			testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka)

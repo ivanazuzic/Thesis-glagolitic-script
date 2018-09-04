@@ -401,8 +401,8 @@ for mod in svi_modeli:
 #save_graph([1, 2, 3, 4, 5], [10, 20, 30, 40, 50], [5, 15, 20, 45, 80], 'Epohe', 'Točnost', 'Točnost klasifikacije', 'Točnost validacije', 'Graf točnosti', 'Rezultati/' + 'modelLeNet' + '/' + 'plot-' + 'modelLeNet' + '-data'+ str(1) + '-acc.png')
 	
 for i in range(1, 4):
-	treniraj(lenet(), 'Modeli/', 'modelLeNet', i, 'Raspodjela/data' + str(i), 5, 120, 120, 120)
-	treniraj(arapski(), 'Modeli/', 'modelarapski', i, 'Raspodjela/data' + str(i), 5, 120, 120, 120)
-	treniraj(kineski1(), 'Modeli/', 'modelkineski1', i, 'Raspodjela/data' + str(i), 5, 120, 120, 120)
-	treniraj(kineski2(), 'Modeli/', 'modelkineski2', i, 'Raspodjela/data' + str(i), 5, 120, 120, 120)
+	treniraj(lenet(), 'Modeli/', 'modelLeNet', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
+	treniraj(arapski(), 'Modeli/', 'modelarapski', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
+	treniraj(kineski1(), 'Modeli/', 'modelkineski1', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
+	treniraj(kineski2(), 'Modeli/', 'modelkineski2', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
 	#treniraj(VGG_16(), 'Modeli/', 'modelVGG', i, 'Raspodjela/data' + str(i), 5, 120, 120, 120)
