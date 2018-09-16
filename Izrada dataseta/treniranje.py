@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os
 #da odaberem graficku karticu
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import shutil
 
 #importanje Kerasa i slojeva za arhitekturu1
@@ -203,12 +203,17 @@ def arapski():
 	model.add(Dropout(0.5))
 	model.add(Conv2D(144, (5, 5), strides=2, activation='relu'))
 	model.add(MaxPooling2D(pool_size=(2, 2)))
+	model.add(Dropout(0.5))
 	model.add(Conv2D(192, (4, 4), strides=2, activation='relu'))
 	model.add(MaxPooling2D(pool_size=(2, 2)))
+	model.add(Dropout(0.5))
 	model.add(Flatten())
 	model.add(Dense(400, activation='relu'))
+	model.add(Dropout(0.5))
 	model.add(Dense(num_classes, activation='softmax'))
-
+	
+	print(model.summary())
+	
 	model.compile(loss=tensorflow.keras.losses.categorical_crossentropy,
 				  optimizer=tensorflow.keras.optimizers.Adadelta(),
 				  metrics=['accuracy']) #metrics.categorical_accuracy
@@ -226,48 +231,58 @@ def treniraj(model, foldername, modelname, data_number, dataset, epochs, batch_s
 	val_datagen = ImageDataGenerator(rescale=1./255)
 
 	train_generator = train_datagen.flow_from_directory(
-			dataset + '/train',
-			target_size=(img_rows, img_cols),
-			color_mode='grayscale',
-			batch_size=batch_size,
-			class_mode='categorical',
-			shuffle='True')
+		dataset + '/train',
+		target_size=(img_rows, img_cols),
+		color_mode='grayscale',
+		batch_size=batch_size,
+		class_mode='categorical',
+		shuffle='True')
 
 	validation_generator = val_datagen.flow_from_directory(
-			dataset + '/validation',
-			target_size=(img_rows, img_cols),
-			color_mode='grayscale',
-			batch_size=batch_size,
-			class_mode='categorical',
-			shuffle='True')
-
+		dataset + '/validation',
+		target_size=(img_rows, img_cols),
+		color_mode='grayscale',
+		batch_size=batch_size,
+		class_mode='categorical',
+		shuffle='True')
+	'''
 	es = tensorflow.keras.callbacks.EarlyStopping(
-				monitor='val_loss',
-				min_delta=0,
-				patience=2,
-				verbose=0, 
-				mode='auto')
-				
+		monitor='val_loss',
+		min_delta=0,
+		patience=2,
+		verbose=0, 
+		mode='auto')
+	'''
+	
+	checkpoint = tensorflow.keras.callbacks.ModelCheckpoint(
+		name + '.h5', 
+		monitor='val_loss', 
+		verbose=0, 
+		save_best_only=True, 
+		mode='auto')
+	
 	history = model.fit_generator(
-			train_generator,
-			steps_per_epoch=steps_per_epoch,
-			epochs=epochs,
-			verbose=1,
-			validation_data=validation_generator,
-			validation_steps=validation_steps,
-			callbacks = [es])
-
+		train_generator,
+		steps_per_epoch=steps_per_epoch,
+		epochs=epochs,
+		verbose=1,
+		validation_data=validation_generator,
+		validation_steps=validation_steps,
+		callbacks = [checkpoint])
+	
+	'''
 	#spremanje modela
 	model_json = model.to_json()
 	with open(name + ".json", "w") as json_file:
 		json_file.write(model_json)
 	#spremanje tezina
 	model.save_weights(name + ".h5")
+	'''
 
 	num_epochs = [i for i in range(1, len(history.history['acc']) + 1)]
 	save_graph(num_epochs, history.history['acc'], history.history['val_acc'], 'Epohe', 'Točnost', 'Točnost treniranja', 'Točnost validacije', 'Graf točnosti', 'Rezultati/' + modelname + '/' + 'plot-' + modelname + '-data'+ str(data_number) + '-acc.png')
 	save_graph(num_epochs, history.history['loss'], history.history['val_loss'], 'Epohe', 'Gubitak', 'Gubitak treniranja', 'Gubitak validacije', 'Graf gubitka', 'Rezultati/' + modelname + '/' + 'plot-' + modelname + '-data'+ str(data_number) + '-loss.png')
-
+'''
 #funkcija koja prikazuje matricu zabune
 def cm_saving(cm, classes, dst, normalize='False', title='Matrica zabune'):
 	if normalize:
@@ -293,7 +308,7 @@ def cm_saving(cm, classes, dst, normalize='False', title='Matrica zabune'):
 	plt.xlabel("Predviđena klasa")
 	plt.savefig(dst, format='png')
 	#plt.show()
-	
+
 def validiraj(model, val):	
 	azbuka = ['a', 'b', 'v', 'g', 'd', 'e', 'zj', 'dz', 'z', '(i)', 'i', 'dj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', 'h', '(o)', "(sj)c'", 'c', 'cj', 'sj', 'ja, (i)je', 'ju' ,'j', 'poluglas']
 	azbuka.sort()
@@ -351,7 +366,7 @@ def validiraj(model, val):
 			else:
 				krivo += 1
 
-	cm_plot_labels = ['(i)', '(o)', "(š)ć", 'a', 'b', 'c', 'cj', 'd', 'dj', 'dž', 'e', 'f', 'g', 'h', 'i', 'j', 'ja,(i)je', 'ju', 'k', 'l', 'm', 'n', 'o', 'p', 'pol.', 'r', 's', 'š', 't', 'u', 'v', 'z', 'ž']
+	cm_plot_labels = ['(i)', '(o)', "(š)ć", 'a', 'b', 'c', 'cj', 'd', 'dj', 'dž', 'e', 'f', 'g', 'h', 'i', 'j', 'ja, (i)je', 'ju', 'k', 'l', 'm', 'n', 'o', 'p', 'pol.', 'r', 's', 'š', 't', 'u', 'v', 'z', 'ž']
 	cm = confusion_matrix(test_labels, rounded_predictions)
 	#cm_plot_labels = [i for i in range(1, 34)]
 	cm_saving(cm, cm_plot_labels, 'Rezultati/' + model + val + '.png')
@@ -375,14 +390,15 @@ def validiraj(model, val):
 	for a in acc:
 		file.write(azbuka[a[1]] + ' ' + str(a[0]) + '\n')
 	file.close()
-	
+'''
 img_rows, img_cols = 50, 50
 input_shape = (img_rows, img_cols, 1)
 num_classes = 33
+'''
 d_azbuka = {'(i)': '(i)', '(o)':'(o)', "(sj)c'": "(š)ć", 'a': 'a', 'b': 'b', 'c': 'c', 'cj': 'č', 'd': 'd', 'dj': 'đ', 'dz': 'dž', 'e': 'e', 'f': 'f', 
 	'g': 'g', 'h': 'h', 'i': 'i', 'j': 'j', 'ja, (i)je': 'ja,(i)je', 'ju': 'ju', 'k': 'k', 'l': 'l', 'm': 'm', 'n': 'n', 'o': 'o', 'p': 'p', 
 	'poluglas': 'pol.', 'r': 'r', 's': 's', 'sj': 'š', 't': 't', 'u': 'u', 'v': 'v', 'z': 'z', 'zj': 'ž'}
-
+'''
 #resetiranje mapa koje nastaju treniranjem
 svi_modeli = ["modelLeNet", "modelarapski", "modelkineski1", "modelkineski2", "modelVGG"]
 
@@ -401,8 +417,8 @@ for mod in svi_modeli:
 #save_graph([1, 2, 3, 4, 5], [10, 20, 30, 40, 50], [5, 15, 20, 45, 80], 'Epohe', 'Točnost', 'Točnost klasifikacije', 'Točnost validacije', 'Graf točnosti', 'Rezultati/' + 'modelLeNet' + '/' + 'plot-' + 'modelLeNet' + '-data'+ str(1) + '-acc.png')
 	
 for i in range(1, 4):
-	treniraj(lenet(), 'Modeli/', 'modelLeNet', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
-	treniraj(arapski(), 'Modeli/', 'modelarapski', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
-	treniraj(kineski1(), 'Modeli/', 'modelkineski1', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
-	treniraj(kineski2(), 'Modeli/', 'modelkineski2', i, 'Raspodjela/data' + str(i), 50, 120, 120, 120)
+	treniraj(lenet(), 'Modeli/', 'modelLeNet', i, 'Raspodjela/data' + str(i), 80, 120, 120, 120)
+	treniraj(arapski(), 'Modeli/', 'modelarapski', i, 'Raspodjela/data' + str(i), 80, 120, 120, 120)
+	treniraj(kineski1(), 'Modeli/', 'modelkineski1', i, 'Raspodjela/data' + str(i), 80, 120, 120, 120)
+	treniraj(kineski2(), 'Modeli/', 'modelkineski2', i, 'Raspodjela/data' + str(i), 80, 120, 120, 120)
 	#treniraj(VGG_16(), 'Modeli/', 'modelVGG', i, 'Raspodjela/data' + str(i), 5, 120, 120, 120)

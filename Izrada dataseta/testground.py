@@ -1,10 +1,10 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import cv2 as cv
 import numpy as np
 from PIL import Image
 import tensorflow
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
 from tensorflow.keras import backend as K
@@ -22,6 +22,7 @@ from funkcije import prikazi, prilagodi, sorensen_dice_coefficient, plotsaving
 from math import floor
 from copy import deepcopy
 import matplotlib.pyplot as plt
+
 
 def flood(c, y, x):
 	h, w = c.shape
@@ -227,7 +228,10 @@ def get_truth(page_img_loc, page_txt_loc):
 	
 	for line in file: 
 		line = line.split()
-		gclass.append(line[-5])
+		letter = line[-5]
+		if letter in ['(i)je', 'ja, (i)je', 'ja,(i)je']:
+			letter = 'ja, (i)je'
+		gclass.append(letter)
 		line = [int(float(x)) for x in line[-4:]]
 		cv.rectangle(img,(line[0],line[1]),(line[2], line[3]),(0,0,255),1)
 		seg.append(prilagodi(img[line[1]:line[3], line[0]:line[2]]))
@@ -235,7 +239,7 @@ def get_truth(page_img_loc, page_txt_loc):
 	
 	return (seg, frames, gclass)
 
-def test_segmentation(truth_frames, guess_frames):
+def test_segmentation(truth_frames, guess_frames, model_name, file):
 	frame_mapping = []
 	for gue in guess_frames:
 		found = 0
@@ -255,8 +259,9 @@ def test_segmentation(truth_frames, guess_frames):
 			maksi = max(sdc_list)
 			maksind = sdc_list.index(maksi)
 			frame_mapping.append(possible_frames[maksind])
-	print("Stvaran broj okvira:", len(truth_frames))
-	print(len(frame_mapping) - frame_mapping.count(None), len(frame_mapping), " izrezanih su istiniti.")
+	file.write(model_name + '\n')
+	file.write("Stvaran broj okvira: " + str(len(truth_frames)) + '\n')
+	file.write(str(len(frame_mapping) - frame_mapping.count(None)) + ' od ' + str(len(frame_mapping)) + ' izrezanih su istiniti.\n')
 	return frame_mapping
 
 def show_correctly_mapped_frames(page_img_loc, frame_mapping):
@@ -302,8 +307,9 @@ def get_conf_matrix(loaded_model, truth_class, segments, azbuka):
 			indeks = output[i].argmax()
 			#slovo koje bi trebalo ispasti
 			slovo = truth_class[i]
-			if slovo == '(i)je':
-				continue
+			#if slovo == '(i)je':
+			#	continue
+				#slovo = 'ja, (i)je'
 			test_labels.append(slovo)
 			#print(azbuka[indeks], slovo)
 			ConfMatrix[azbuka.index(slovo)][indeks] += 1 
@@ -313,7 +319,6 @@ def get_conf_matrix(loaded_model, truth_class, segments, azbuka):
 				num += 1
 	#print(num, total)
 	#print(' '.join(gclass)) #tocan tekst
-	print(test_labels)
 	cm = confusion_matrix(test_labels, rounded_predictions, azbuka)
 	return (cm, test_labels, rounded_predictions)
 
@@ -338,7 +343,8 @@ def statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions):
 		file.write(azbuka[a[1]] + ' ' + str(a[0]) + '\n')
 	file.close()
 	
-def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka):
+def testiraj(model_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka):
+	'''
 	#ucitaj json i stvori model
 	json_file = open(model_json_loc, 'r')
 	loaded_model_json = json_file.read()
@@ -346,9 +352,11 @@ def testiraj(model_json_loc, model_weights_loc,  truth_frames, truth_class, trut
 	loaded_model = model_from_json(loaded_model_json)
 	#ucitaj tezine za model
 	loaded_model.load_weights(model_weights_loc)
-
+	'''
+	loaded_model = load_model(model_loc)
+	
 	(cm, test_labels, rounded_predictions) = get_conf_matrix(loaded_model, truth_class, truth_seg, azbuka)
-	plotsaving(cm, azbuka, plot_loc, normalize=False, title='Confusion matrix')
+	plotsaving(cm, azbuka, plot_loc, normalize=True, title='Confusion matrix')
 	statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions)
 	
 	"""
@@ -373,24 +381,44 @@ img_rows, img_cols = 50, 50
 num_classes = 33
 
 all_models = ["modelLeNet", "modelarapski", "modelkineski1", "modelkineski2"]
-for mod in all_models:
-	print("Model " + mod + " je ucitan")
-	model_json_loc = 'Modeli/' + mod + '/' + mod + '-data1.json'
-	model_weights_loc = 'Modeli/' + mod + '/' + mod + '-data1.h5'
-	tests = os.listdir('Testovi')
-	for title in tests:
-		folders = os.listdir('Testovi/' + title)
-		for folder in folders:
-			page_img_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title) + folder + '.png'
-			page_txt_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title + folder) + '.txt'
+#all_models = ["modelarapski"]
 
-			(truth_seg, truth_frames, truth_class) = get_truth(page_img_loc, page_txt_loc)
-			(guess_seg, guess_frames) = split_to_lines(page_img_loc)
+test_seg_file = open('Rezultati/Test segmetation.txt','w') 
+
+for mod in all_models:
+	for dataset in range(1, 4):
+		model_loc = 'Modeli/' + mod + '/' + mod + '-data' + str(dataset) + '.h5'
+		tests = os.listdir('Testovi')
+		for title in tests:
+			folders = os.listdir('Testovi/' + title)
 			
-			frame_mapping = test_segmentation(truth_frames, guess_frames)
-			#show_correctly_mapped_frames(page_img_loc, frame_mapping)
+			truth_seg_for_folder = []
+			truth_frames_for_folder = []
+			truth_class_for_folder = []
+			guess_seg_for_folder = []
+			guess_frames_for_folder = []
+			frame_mapping_for_folder = []
 			
-			#Testiranje tocnosti
-			plot_loc = 'Rezultati/' + mod + str.lower(title) + folder + '.png'
-			stat_loc = 'Rezultati/' + mod + str.lower(title) + folder + '.txt'
-			testiraj(model_json_loc, model_weights_loc, truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka)
+			for folder in folders:
+				page_img_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title) + folder + '.png'
+				page_txt_loc = 'Testovi/' + title + '/' + folder + '/' + str.lower(title + folder) + '.txt'
+
+				(truth_seg, truth_frames, truth_class) = get_truth(page_img_loc, page_txt_loc)
+				(guess_seg, guess_frames) = split_to_lines(page_img_loc)
+				
+				frame_mapping = test_segmentation(truth_frames, guess_frames, mod + '-data' + str(dataset), test_seg_file)
+				#show_correctly_mapped_frames(page_img_loc, frame_mapping)
+				
+				truth_seg_for_folder += truth_seg
+				truth_frames_for_folder += truth_frames
+				truth_class_for_folder += truth_class
+				guess_seg_for_folder += guess_seg
+				guess_frames_for_folder += guess_frames
+				frame_mapping_for_folder += frame_mapping
+				
+				#Testiranje tocnosti
+			plot_loc = 'Rezultati/' + mod + '/' + mod + str.lower(title) + '-data' + str(dataset) + '.png'
+			stat_loc = 'Rezultati/' + mod + '/' + mod + str.lower(title) + '-data' + str(dataset) + '.txt'
+			testiraj(model_loc, truth_frames_for_folder, truth_class_for_folder, truth_seg_for_folder, guess_seg_for_folder, guess_frames_for_folder, frame_mapping_for_folder, plot_loc, stat_loc, azbuka)
+
+test_seg_file.close()
