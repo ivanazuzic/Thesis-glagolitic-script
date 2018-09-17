@@ -130,7 +130,7 @@ def split_to_lines(img_loc):
 	plt.show()
 
 	print(hist_row)
-	prikazi("Slika", arrimg)
+	prikazi("Histogram", arrimg)
 	"""
 
 	h, w = original.shape
@@ -181,13 +181,12 @@ def split_to_lines(img_loc):
 				prom = True
 				break
 	"""
-	Segmentacija na linije
-	prikazi("Slika", original)
+	#Segmentacija na linije
+	prikazi("Segmentacija na linije", original)
 	"""
-	
 	chars = []
 	frames = []
-	for i in range(0, len(lines)): #TODO stavi sve linije a ne 1
+	for i in range(0, len(lines)): 
 		if lines[i-1] >= lines[i]:
 			#print("dalje") 
 			continue
@@ -239,7 +238,7 @@ def get_truth(page_img_loc, page_txt_loc):
 	
 	return (seg, frames, gclass)
 
-def test_segmentation(truth_frames, guess_frames, model_name, file):
+def test_segmentation(img, truth_frames, guess_frames, model_name, file):
 	frame_mapping = []
 	for gue in guess_frames:
 		found = 0
@@ -260,17 +259,24 @@ def test_segmentation(truth_frames, guess_frames, model_name, file):
 			maksind = sdc_list.index(maksi)
 			frame_mapping.append(possible_frames[maksind])
 	file.write(model_name + '\n')
-	file.write("Stvaran broj okvira: " + str(len(truth_frames)) + '\n')
+	file.write(img + " Stvaran broj okvira: " + str(len(truth_frames)) + '\n')
 	file.write(str(len(frame_mapping) - frame_mapping.count(None)) + ' od ' + str(len(frame_mapping)) + ' izrezanih su istiniti.\n')
 	return frame_mapping
 
-def show_correctly_mapped_frames(page_img_loc, frame_mapping):
+def show_correctly_mapped_frames(page_img_loc, frame_mapping, true_mapping):
 	kopija = cv.imread(page_img_loc, 0)
+	for tm in true_mapping:
+		cv.line(kopija, (tm[2], tm[0]), (tm[2], tm[1]), 255, 1)
+		cv.line(kopija, (tm[3], tm[0]), (tm[3], tm[1]), 255, 1)
+		cv.line(kopija, (tm[2], tm[0]), (tm[3], tm[0]), 255, 1)
+		cv.line(kopija, (tm[2], tm[1]), (tm[3], tm[1]), 255, 1)
 	for fm in frame_mapping:
 		if fm == None:
 			continue
-		cv.line(kopija, (fm[2], fm[0]), (fm[2], fm[1]), 255, 1)
+		cv.line(kopija, (fm[2], fm[0]), (fm[2], fm[1]), 1, 1)
 		cv.line(kopija, (fm[3], fm[0]), (fm[3], fm[1]), 1, 1)
+		cv.line(kopija, (fm[2], fm[0]), (fm[3], fm[0]), 1, 1)
+		cv.line(kopija, (fm[2], fm[1]), (fm[3], fm[1]), 1, 1)
 	prikazi("", kopija)	
 	
 def get_conf_matrix(loaded_model, truth_class, segments, azbuka):
@@ -326,19 +332,27 @@ def statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions):
 	file = open(stat_loc,'w') 
 	acc_by_class = []
 	acc = []
+	file.write('Statistics from the confusion matrix\n')
 	for i in range(len(cm)):
-		acc_by_class.append((cm[i][i] / sum(cm[i]),  i) )
-		acc.append((cm[i][i] / sum(cm[i]),  i))
+		correct = cm[i][i]
+		all = sum(cm[i])
+		if all == 0: #izbjegavanje nan vrijednosti
+			continue
+		acc_by_class.append((correct / all,  i))
+		acc.append((correct / all,  i))
 		file.write("Slovo " + azbuka[i] + " TP " + str (cm[i][i]) + " Total " +str(sum(cm[i])) + '\n')
 
 	acc_by_class.sort()
 	acc_by_class.reverse()
+	file.write('---------------\n')
+	file.write('Five most accurate classes: \n')
 	for a in acc_by_class[:5]:
 		file.write(azbuka[a[1]] + ' ' + str(a[0]) + ' ' + str(cm[a[1]]) + '\n')
 	file.write('---------------\n')
-	file.write('Total accuracy ' + str(accuracy_score(test_labels, rounded_predictions, normalize=True)) + '\n')
+	file.write('Total accuracy: ' + str(accuracy_score(test_labels, rounded_predictions, normalize=True)) + '\n')
 	#file.write('Total accuracy2 ' + str(tocno / (tocno + krivo)) + '\n')
 	file.write('---------------\n')
+	file.write('Accuracy by class: \n')
 	for a in acc:
 		file.write(azbuka[a[1]] + ' ' + str(a[0]) + '\n')
 	file.close()
@@ -356,8 +370,14 @@ def testiraj(model_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_
 	loaded_model = load_model(model_loc)
 	
 	(cm, test_labels, rounded_predictions) = get_conf_matrix(loaded_model, truth_class, truth_seg, azbuka)
-	plotsaving(cm, azbuka, plot_loc, normalize=True, title='Confusion matrix')
+	plotsaving(cm, azbuka, plot_loc, normalize=True, title='Matrica zabune')
 	statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions)
+	guess_seg = np.reshape(guess_seg, (-1, 50, 50, 1))
+	all_predictions = loaded_model.predict(guess_seg)
+	s = []
+	for l in all_predictions:
+		s.append(azbuka[l.argmax()])
+	print(' '.join(s))
 	
 	"""
 	reduced_truth_class = []
@@ -406,8 +426,9 @@ for mod in all_models:
 				(truth_seg, truth_frames, truth_class) = get_truth(page_img_loc, page_txt_loc)
 				(guess_seg, guess_frames) = split_to_lines(page_img_loc)
 				
-				frame_mapping = test_segmentation(truth_frames, guess_frames, mod + '-data' + str(dataset), test_seg_file)
-				#show_correctly_mapped_frames(page_img_loc, frame_mapping)
+				frame_mapping = test_segmentation(page_img_loc, truth_frames, guess_frames, mod + '-data' + str(dataset), test_seg_file)
+				#show_correctly_mapped_frames(page_img_loc, frame_mapping, truth_frames)
+				#show_correctly_mapped_frames(page_img_loc, guess_frames, truth_frames)
 				
 				truth_seg_for_folder += truth_seg
 				truth_frames_for_folder += truth_frames

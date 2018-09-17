@@ -212,11 +212,9 @@ def arapski():
 	model.add(Dropout(0.5))
 	model.add(Dense(num_classes, activation='softmax'))
 	
-	print(model.summary())
-	
 	model.compile(loss=tensorflow.keras.losses.categorical_crossentropy,
 				  optimizer=tensorflow.keras.optimizers.Adadelta(),
-				  metrics=['accuracy']) #metrics.categorical_accuracy
+				  metrics=['accuracy']) 
 	return model
 
 #funkcija koja trenira model na odredjenom datasetu te sprema rezultat

@@ -6,6 +6,8 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
+alphabet_for_display = {'a': 'a', 'b': 'b', 'v': 'v', 'g': 'g', 'd': 'd', 'e': 'e', 'zj': u' ž', 'dz': 'dž', 'z': 'z', '(i)': '(i)', 'i': 'i', 'dj': 'đ', 'k': 'k', 'l': 'l', 'm': 'm', 'n': 'n', 'o': 'o', 'p': 'p', 'r': 'r', 's': 's', 't': 't', 'u': 'u', 'f': 'f', 'h': 'h', '(o)': '(o)', "(sj)c'": '(š)ć', 'c': 'c', 'cj': 'č', 'sj': 'š', 'ja, (i)je': 'ja, (i)je', 'ju': 'ju','j': 'j', 'poluglas': 'poluglas'}
+
 def prilagodi(img):
     color = [255,0,0]
     imgsize = img.shape
@@ -80,11 +82,11 @@ def noisy(noise_list,image):
 					image[r, c] = noisy[r, c]
 	return image
 	
-def plotsaving(cm, classes, dst, normalize='False', title='Confusion matrix'):
+def plotsaving(cm, classes, dst, normalize='False', title='Matrica zabune'):
 	if normalize:
 		cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
 
-	fig = plt.figure()
+	fig = plt.figure(figsize=(10, 10), dpi=300)
 	plt.clf()
 	ax = fig.add_subplot(111)
 	ax.set_aspect(1)
@@ -96,16 +98,21 @@ def plotsaving(cm, classes, dst, normalize='False', title='Confusion matrix'):
 	height = len(classes)
 
 	cb = fig.colorbar(res)
-	alphabet = classes
+	
+	alphabet = []
+	for i in range(len(classes)):
+		alphabet.append(' ' + alphabet_for_display[classes[i]])
+	
+	
 	plt.xticks(range(width), alphabet[:width], rotation=90)
 	plt.yticks(range(height), alphabet[:height])
 	plt.tight_layout(pad=1.5)
-	plt.ylabel("True label")
-	plt.xlabel("Predicted label")
+	plt.ylabel("Stvarna oznaka")
+	plt.xlabel("Predviđena oznaka")
 	plt.savefig(dst, format='png')
 
 #TODO: Remove this function
-def plot_confusion_matrix(cm, classes, normalize='False', title='Confusion matrix', cmap=plt.cm.Blues):
+def plot_confusion_matrix(cm, classes, normalize='False', title='Matrica zabune', cmap=plt.cm.Blues):
 	plt.imshow(cm, interpolation='nearest', cmap=cmap)
 	plt.title(title)
 	plt.colorbar()
@@ -115,9 +122,9 @@ def plot_confusion_matrix(cm, classes, normalize='False', title='Confusion matri
 	
 	if normalize:
 		cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-		print("Normalized confusion matrix")
+		print("Normalizirana matrica zabune")
 	else:
-		print("Confusion matrix, without normalization")
+		print("Matrica zabune bez normalizacije")
 	print(cm)
 	tresh = cm.max() / 2
 	for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
