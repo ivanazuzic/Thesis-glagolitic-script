@@ -184,6 +184,7 @@ def split_to_lines(img_loc):
 	#Segmentacija na linije
 	prikazi("Segmentacija na linije", original)
 	"""
+	
 	chars = []
 	frames = []
 	for i in range(0, len(lines)): 
@@ -249,7 +250,7 @@ def test_segmentation(img, truth_frames, guess_frames, model_name, file):
 			if (sdc >= 0.70):
 				possible_frames.append(tr)
 				sdc_list.append(sdc)
-				print(sdc, gue, tr)
+				#print(sdc, gue, tr)
 				found += 1
 				break
 		if found == 0:
@@ -306,7 +307,7 @@ def get_conf_matrix(loaded_model, truth_class, segments, azbuka):
 	
 	num = 0 #tocni
 	total = 0 #svi
-	print(len(output), len(truth_class), len(segments))
+	#print(len(output), len(truth_class), len(segments))
 	if len(output) > 0:
 		for i in range(len(output)):
 			#slovo koje je ispalo
@@ -357,7 +358,7 @@ def statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions):
 		file.write(azbuka[a[1]] + ' ' + str(a[0]) + '\n')
 	file.close()
 	
-def testiraj(model_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka):
+def testiraj(model_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_frames, frame_mapping, plot_loc, stat_loc, azbuka, f, page_img_loc):
 	'''
 	#ucitaj json i stvori model
 	json_file = open(model_json_loc, 'r')
@@ -372,13 +373,17 @@ def testiraj(model_loc,  truth_frames, truth_class, truth_seg, guess_seg, guess_
 	(cm, test_labels, rounded_predictions) = get_conf_matrix(loaded_model, truth_class, truth_seg, azbuka)
 	plotsaving(cm, azbuka, plot_loc, normalize=True, title='Matrica zabune')
 	statistic_saving(cm, stat_loc, azbuka, test_labels, rounded_predictions)
+	
 	guess_seg = np.reshape(guess_seg, (-1, 50, 50, 1))
 	all_predictions = loaded_model.predict(guess_seg)
 	s = []
-	for l in all_predictions:
+	for l, img in zip(all_predictions, guess_seg):
 		s.append(azbuka[l.argmax()])
-	print(' '.join(s))
-	
+		#prikazi(str(azbuka[l.argmax()]), img)
+	f.write(page_img_loc + '\n')
+	f.write(model_loc + '\n')
+	f.write(' '.join(s) + '\n')
+	f.write('------------------------------------------------------------------------------------------\n')
 	"""
 	reduced_truth_class = []
 	reduced_guess_seg = []
@@ -404,7 +409,7 @@ all_models = ["modelLeNet", "modelarapski", "modelkineski1", "modelkineski2"]
 #all_models = ["modelarapski"]
 
 test_seg_file = open('Rezultati/Test segmetation.txt','w') 
-
+content_file = open('Rezultati/Content_file.txt','w') 
 for mod in all_models:
 	for dataset in range(1, 4):
 		model_loc = 'Modeli/' + mod + '/' + mod + '-data' + str(dataset) + '.h5'
@@ -429,17 +434,18 @@ for mod in all_models:
 				frame_mapping = test_segmentation(page_img_loc, truth_frames, guess_frames, mod + '-data' + str(dataset), test_seg_file)
 				#show_correctly_mapped_frames(page_img_loc, frame_mapping, truth_frames)
 				#show_correctly_mapped_frames(page_img_loc, guess_frames, truth_frames)
-				
+			
 				truth_seg_for_folder += truth_seg
 				truth_frames_for_folder += truth_frames
 				truth_class_for_folder += truth_class
 				guess_seg_for_folder += guess_seg
 				guess_frames_for_folder += guess_frames
 				frame_mapping_for_folder += frame_mapping
-				
+			
 				#Testiranje tocnosti
 			plot_loc = 'Rezultati/' + mod + '/' + mod + str.lower(title) + '-data' + str(dataset) + '.png'
 			stat_loc = 'Rezultati/' + mod + '/' + mod + str.lower(title) + '-data' + str(dataset) + '.txt'
-			testiraj(model_loc, truth_frames_for_folder, truth_class_for_folder, truth_seg_for_folder, guess_seg_for_folder, guess_frames_for_folder, frame_mapping_for_folder, plot_loc, stat_loc, azbuka)
+			testiraj(model_loc, truth_frames_for_folder, truth_class_for_folder, truth_seg_for_folder, guess_seg_for_folder, guess_frames_for_folder, frame_mapping_for_folder, plot_loc, stat_loc, azbuka, content_file, page_img_loc)
 
 test_seg_file.close()
+content_file.close()
